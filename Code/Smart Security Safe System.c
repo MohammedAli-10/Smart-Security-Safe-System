@@ -1,4 +1,4 @@
-﻿#define F_CPU 8000000UL
+#define F_CPU 8000000UL
 #define PASS_LEN 4
 #include <avr/io.h>
 #include <util/delay.h>
@@ -56,26 +56,7 @@ void Timer_Init() {//This function is called once at the beginning of the progra
 	sei();
 }
 
-char keypad_GetKey()
-{ //Returns the key pressed in the keyboard
-	uint8_t row, col;
-	for(row = 0; row < 4; row++)
-	{
-		PORTA = (PORTA & 0xF0) | (0x0F & ~(1 << row));
-		_delay_us(10);
-		
-		for(col = 0; col < 4; col++)
-		{
-			if(!(PINA & (1 << (col + 4))))
-			{
-				_delay_ms(20);
-				while(!(PINA & (1 << (col + 4))));
-				return keypad_map[row][col];
-			}
-		}
-	}
-	return 0;
-}
+
 
 void save_pass(char *eeprom_pass){ //save pass in the EEPROM
 	eeprom_write_block((const void*)eeprom_pass, (void*)pass, PASS_LEN);
@@ -133,6 +114,40 @@ char VibretionSensor(char vib) {// function it check if the safe Move or break o
 	if(vib == 1) {
 		if(!(PINC & (1 << PC4)) || !(PIND & (1 << PD2)) || !(PIND & (1 << PD3)) || !(PIND & (1 << PD4))) {
 			return 1;
+		}
+	}
+	return 0;
+}
+
+char keypad_GetKey()
+{ //Returns the key pressed in the keyboard
+	uint8_t row, col;
+	for(row = 0; row < 4; row++)
+	{
+		PORTA = (PORTA & 0xF0) | (0x0F & ~(1 << row));
+		_delay_us(10);
+		
+		for(col = 0; col < 4; col++)
+		{
+			if(!(PINA & (1 << (col + 4))))
+			{
+				_delay_ms(150);
+				while(!(PINA & (1 << (col + 4)))){
+					if(vibration_ok == 1 && VibretionSensor(1))
+					vibration_latched = 1;
+					if(vibration_latched)
+					alarm_on();
+					char sw_alarm_inner = AlarmSwitch();
+					if(!alarm_latched && !sw_alarm_inner && alarm_switch && !auth)
+					alarm_latched = 1;
+					if(sw_alarm_inner && !alarm_switch)
+					auth = 0;
+					alarm_switch = sw_alarm_inner;
+					if(alarm_latched)
+					alarm_on();
+				}
+				return keypad_map[row][col];
+			}
 		}
 	}
 	return 0;
